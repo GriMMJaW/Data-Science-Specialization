@@ -1,0 +1,117 @@
+---
+title: "Regression_Analysis_Project"
+author: "Anurag Ladage"
+date: "July 24, 2014"
+output: pdf_document
+---
+
+###EXECUTIVE SUMMARY
+This project makes in depth analysis on the variable relationships in the 'mtcars' dataset from the datasets library by performing a multivariate regression analysis. The first part of the report consists of an exhaustive model selection procedure. Then we move on to statistically prove that the miles per gallon (mpg) performance parameter is different for automatic transmission and manual transmission. Additionally, we also go on to quantify the difference in mpg variable for both the transmission modes.
+
+*Note: All the supporting figures and tables are in the appendix*
+
+
+###IMPORTING DATA AND PERFORMING EXPLORATORY ANALYSIS:
+```{r echo = TRUE}
+mydata <- mtcars;#pairs(mydata) - Refer to Fig(1)
+```
+The correlation matrix was also analysed but to avoid redundancy it is not included in the report.
+
+###MODEL SELECTION
+
+First we just fit a linear model using all the input variables to get an overview of the relationships.
+```{r echo=TRUE}
+fit <- lm(mpg~.,data=mydata)
+```
+In the above data there is no significant regressor except may be weight that seems to be affecting the mpg variable. This makes us question the validity of the model and creates a need to filter out the extra variables we might have added in. It might we safe to assume for now that the weight and the trasmission factor will be included in the filtered regression model.
+
+*Note: One general rule that can be followed during any regression analysis from my experience is that if the main effects of a variable is statistically insginificant then all its higher level interactions will also be insignificant. Thus, we examine and reduce the our model first using only main effects and get a good fit. Once this is done we can then include the interactions if necessary.*  
+
+
+**Initial Variable Elimination Strategy:**
+
+Transmission('am') and weight('wt') will definitely included in the model. Now, we eliminate 'cyl' variable from the model as it is very highly correlated to weights (wt) and seems to be redundant. Further 'hp' and 'disp' are also highly correlated. As the correlation of 'disp' with 'mpg'(-0.846) is more than that of 'hp' with 'mpg'(-0.776) for now we decide to include 'disp'. Additionally, the 'drat' variable also shows high correlation with 'disp'(-0.71). Thus, for now we go ahead with 'disp' and eliminate 'hp' and 'drat'. Note that at this point this is only a judgement call and later on we can compare the models with likelihood ratios test to prove the correctness of the factors we have excluded.Elimination of 'qsec' is unclear at this stage as the its correlation with 'disp'(-0.434) and 'wt'(-0.175) is low. Hence, we decide it to include in the model for now. Similarly we eliminate other factor variables keeping only 'am' and 'vs' in the model.
+
+
+**Stepwise model selection and regressor variable elimination:**
+``` {r echo =TRUE}
+fit1 <- lm(mpg~disp+wt+factor(vs)+qsec+factor(am),data=mydata)
+fit2 <- update(fit1,mpg~hp+drat+wt+factor(vs)+qsec+factor(am))
+#anova(fit1,fit2) - Refer to Fig(2)
+```
+
+The first model was analysed and the regressors with the their co-efficents having the p-values greater than 0.05 were eliminated. The reason for this being that if the p-values are greater than alpha we fail to reject the null hypothesis that the regression co-efficient is equal to zero. Further, likelihood ratio test is performed to confirm the exclusion of both the disp and drat variable. The p-value for the anova is again greater than 0.05 which proves our initial asusmptions right. Our model now has the following regressors.
+
+``` {r echo=TRUE}
+fit3 <- lm(mpg~wt+qsec+factor(am),data=mydata);#summary(fit)$coefficients[,4] - Refer to fig(3)
+```
+From the above displayed p-values we can see that all regression co-efficients significant. Further we perform an likelihood ratio test on the model without interactions and with interactions which proves that indeed the interaction effects need to be accounted for.
+
+``` {r echo=TRUE}
+fit4 <- update(fit3,mpg~wt+qsec+factor(am)+wt*qsec*factor(am))
+#anova(fit3,fit4) - Refer to Fig(4)
+```
+
+After analysing further and eliminating the insignificant 3 way interactions and some 2 way interactions our final model looks as below:
+``` {r ECHO=TRUE}
+final_fit <- lm(mpg~wt+qsec+factor(am)+wt*factor(am),data=mydata)
+#summary(final_fit) - Refer to Fig(5)
+```
+
+###CONFIDENCE INTERVALS AND RESIDUAL ANALYSIS
+To answer both the questions asked by the Motor Trend we further produce confidence intervals for the regression co-efficients at both factor levels to account for the uncertainty.
+
+*Note: The intercept shows the effect of automatic transmission and (intercept+factor(am1)) value shows the effect of manual transmission.*
+
+``` {r echo=TRUE}
+conf_automatic = coef(final_fit)[1] + c(1,-1)*qt(0.975,df=summary(final_fit)$df[2])
+conf_manual = coef(final_fit)[1]+coef(final_fit)[4] + c(1,-1)*qt(0.975,df=summary(final_fit)$df[2])
+#par(mfrow=c(2,2));plot(final_fit) - Refer to Fig(6)
+```
+On observing the residual plots there is no noticeable pattern in residuals vs fitted plots which might suggest non-linearity. Additionally, the normal Q-Q plot shows the residuals to be normally distributed with a few outliers. The residuals vs leverage plot does show some outliers which is acceptable. For a more robust model the rlm function from the library MASS can be used.
+
+###CONCLUSION:
+It can statistically be proven that manual transmission is better than automatic transmission for MPG as the confidence intervals for both the co-efficients donot overlap. For a confidence interval of 95% the range of MPG for manual transmission is [25.85431, 21.75065] and that for automatic transmission is [11.774883, 7.671222].
+
+\pagebreak
+
+###APPENDIX:
+**Fig(1)**
+
+``` {r echo=FALSE,fig.cap="Fig(1)",fig.width=10,fig.height=6}
+par(mfrow=c(2,2),bg="lightskyblue3",col.axis="black",col.lab="black",col.main="black",col.sub="black",col="midnightblue")
+pairs(mydata,pch=20,main="CORRELATION PLOT")
+```
+
+
+**Fig(2)**
+
+``` {r echo=FALSE,fig.cap="Fig(2)"}
+anova(fit1,fit2)
+```
+
+
+**Fig(3)**
+
+``` {r echo=FALSE, fig.cap="Fig(3)"}
+summary(fit)$coefficients[,4]
+```
+
+**Fig(4)**
+``` {r echo=FALSE, fig.cap="Fig(4)"}
+anova(fit3,fit4)
+```
+
+**Fig(5)**
+``` {r echo=FALSE, fig.cap="Fig(5)"}
+summary(final_fit)
+```
+
+\pagebreak
+
+**Fig(6)**
+
+``` {r echo=FALSE, fig.cap="Fig(6)",fig.height=6}
+par(mfrow=c(2,2),bg="lightskyblue3",col.axis="black",col.lab="black",col.main="black",col.sub="black",col="midnightblue")
+plot(final_fit,pch=19)
+```
