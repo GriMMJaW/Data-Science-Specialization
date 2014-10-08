@@ -1,0 +1,112 @@
+**SHORT REVIEW OF THE MORTALITY RATE AND ECONOMIC LOSS CAUSED DUE TO SEVERE WEATHER EVENTS**
+========================================================
+
+**Synopsis:** 
+The below report reviews the loss of human life and economic losses sustained due to different types of sever weeather conditions as documented by U.S. National Oceanic and Atmospheric Administration. The analysis deals with the human population loss and economics loss due to these weather events. This analysis is meant to give just a rough idea about the intensity of damage caused and thus many simplifying assumptions are made in the process. Any values going beyond the Y-limits in the second figure are to be be considered over-critical and most dangerous weather events. I should be noted that though data is cleaned due to improper data collection some catergories of weather events are repetative.
+
+
+All the necessary data processing  in done in the chunk below. The main datasets produced during the process are:
+
+- population_data : Dataset of the damage caused to human life due to various weather events.
+- economic_damage : Dataset of the economic damage caused due to various weather events.
+- Total_Fatalities : Dataset consisting of the total number of fatalities caused to human life.
+- Total_Injuries : Dataset consisting of the total number of injuries caused to human life.
+- crop_damage : Dataset consisting of the total monetary loss sustained due to crop loss.
+- prop_damage : Dataset consisting of the total monetary loss sustained due to property loss.
+- Total_Damage : Dataset consisting of top 100 weather events causing total fatalities, total injuries, total crop damage and total property damage.
+
+*Note:* The .Rmd file and .csv.bz2 data file should be placed in the working directory prior to code execution.
+
+
+**DATA PRE-PROCESSING**
+```{r Data Preprocessing,cache=TRUE}
+library(plyr)
+mydata <- read.csv("repdata-data-StormData.csv.bz2",header=T,na.strings="?")
+
+population_data <- mydata[,c(8,23,24)]
+population_data$EVTYPE <- toupper(population_data$EVTYPE)
+population_data <- ddply(population_data,.(EVTYPE),summarize,Total_Fatalities=sum(FATALITIES),Total_Injuries=sum(INJURIES))
+
+economic_damage <- mydata[,c(8,25,26,27,28)]
+economic_damage$EVTYPE <- toupper(economic_damage$EVTYPE) 
+economic_damage$CROPDMGEXP <- toupper(economic_damage$CROPDMGEXP)
+economic_damage$PROPDMGEXP <- toupper(economic_damage$PROPDMGEXP)
+
+Total_Fatalities <- population_data[population_data$Total_Fatalities !=0,c(1,2)]
+Total_Fatalities <- Total_Fatalities[order(Total_Fatalities$Total_Fatalities,decreasing=T),]
+Total_Fatalities$Total_Fatalities <- log10(Total_Fatalities$Total_Fatalities)
+Total_Fatalities <- Total_Fatalities[Total_Fatalities$Total_Fatalities !=0,]
+
+Total_Injuries <- population_data[population_data$Total_Injuries !=0,c(1,3)]
+Total_Injuries <- Total_Injuries[order(Total_Injuries$Total_Injuries,decreasing=T),]
+Total_Injuries$Total_Injuries <- log10(Total_Injuries$Total_Injuries)
+Total_Injuries <- Total_Injuries[Total_Injuries$Total_Injuries !=0,]
+
+##For crop damage anything below 10000 is considered insignificant.
+crop_damage <- economic_damage[economic_damage$CROPDMGEXP=="M"|economic_damage$CROPDMGEXP=="K"|economic_damage$CROPDMGEXP=="B",c(1,4,5)]
+crop_damage <- crop_damage[crop_damage$CROPDMG !=0,]
+crop_damage$CROPDMGEXP <- gsub("M",replacement="1000000",crop_damage$CROPDMGEXP)
+crop_damage$CROPDMGEXP <- gsub("K",replacement="1000",crop_damage$CROPDMGEXP)
+crop_damage$CROPDMGEXP <- gsub("B",replacement="1000000000",crop_damage$CROPDMGEXP)
+crop_damage$CROPDMGEXP <- as.numeric(crop_damage$CROPDMGEXP)
+crop_damage$CROPDMG_CROPDMGEXP <- crop_damage$CROPDMG*crop_damage$CROPDMGEXP 
+crop_damage <- ddply(crop_damage,.(EVTYPE),summarize,Total_Crop_Damage=sum(CROPDMG_CROPDMGEXP))
+crop_damage <- crop_damage[order(crop_damage$Total_Crop_Damage,decreasing=T),]
+crop_damage <- crop_damage[crop_damage$Total_Crop_Damage >=10000,]
+
+##For property damage anything less than 5,00,000 is considered insignificant.
+prop_damage <- economic_damage[economic_damage$PROPDMGEXP=="M"|economic_damage$PROPDMGEXP=="K"|economic_damage$PROPDMGEXP=="B"|economic_damage$PROPDMGEXP=="H",c(1,2,3)]
+prop_damage <- prop_damage[prop_damage$PROPDMG !=0,]
+prop_damage$PROPDMGEXP <- gsub("M",replacement="1000000",prop_damage$PROPDMGEXP)
+prop_damage$PROPDMGEXP <- gsub("K",replacement="1000",prop_damage$PROPDMGEXP)
+prop_damage$PROPDMGEXP <- gsub("B",replacement="1000000000",prop_damage$PROPDMGEXP)
+prop_damage$PROPDMGEXP <- gsub("H",replacement="100",prop_damage$PROPDMGEXP)
+prop_damage$PROPDMGEXP <- as.numeric(prop_damage$PROPDMGEXP)
+prop_damage$PROPDMG_PROPDMGEXP <- prop_damage$PROPDMG*prop_damage$PROPDMGEXP 
+prop_damage <- ddply(prop_damage,.(EVTYPE),summarize,Total_prop_damage=sum(PROPDMG_PROPDMGEXP))
+prop_damage <- prop_damage[order(prop_damage$Total_prop_damage,decreasing=T),]
+prop_damage <- prop_damage[prop_damage$Total_prop_damage >=500000,]
+```
+
+
+
+**ANALYSIS AND PLOTS**
+The below figures are completely self-explanatory and all conclusions can be drawn by visualization.
+
+Fig 1 represents an histogram for total fatalities caused and total injuries caused throughtout United States in decreasing order for the most damaging weather events. The Y-axis represents Log of the original values for better representation purposes. 
+
+```{r Population Casualties Plots,fig.width=15,fig.height=15,fig.cap="FIG 1"}
+
+par(mfrow=c(2,1),bg="navy",col.axis="white",col.lab="white",col.main="white", col.sub="black",lend=1,mar=c(6,4,4,2))
+plot(Total_Fatalities$Total_Fatalities,type="h",xaxt="n",col="gray",xlab="",main="Total Fatalities VS EVTYPE (Across US)",ylab="Total Fatalities")
+axis(side=1,at=c(1:nrow(Total_Fatalities)),labels=Total_Fatalities$EVTYPE,las=2,cex.axis=0.5)
+plot(Total_Injuries$Total_Injuries,type="h",xaxt="n",col="gray",xlab="",ylab="Total Injuries",main="Total Injuries VS EVTYPE (Across US)")
+axis(side=1,at=c(1:nrow(Total_Injuries)),labels=Total_Injuries$EVTYPE,las=2,cex.axis=0.5)
+```
+
+
+Fig 2 represents the property and crop damage caused to due to various severe weather events.
+
+```{r Property Damage Plots, fig.width=17,fig.height=15, fig.cap = "Fig 2"}
+par(mfrow=c(2,1),bg="blue",col.axis="white",col.lab="white",col.main="white", col.sub="black",lend=1,mar=c(6,4,4,2))
+plot(crop_damage$Total_Crop_Damage,type="h",xaxt="n",yaxt='n',col="gray",xlab="",main="Total Crop Damage VS EVTYPE (Across US)",ylab="Total Crop Damage",ylim=c(10000,1000000))
+axis(side=1,at=c(1:nrow(crop_damage)),labels=crop_damage$EVTYPE,las=2,cex.axis=0.5)
+axis(side=2,at=c(10000,500000,1000000),labels=c("10K","500K","1M"),las=2)
+plot(prop_damage$Total_prop_damage,type="h",xaxt="n",yaxt="n",col="gray",xlab="",ylab="Total Property Damage",main="Total Property VS EVTYPE (Across US)",ylim=c(500000,1000000))
+axis(side=1,at=c(1:nrow(prop_damage)),labels=prop_damage$EVTYPE,las=2,cex.axis=0.5)
+axis(side=2,at=c(500000,750000,1000000),labels=c("500K","750K","1M"),las=2)
+```
+
+
+**RESULTS**
+The below Table represents the top 100 events causing maximum damage in their respective categories. The total fatalities and total injuries account for damage to human population while crop damage and property damage account for economic loss.
+
+```{r}
+Total_Damage <- data.frame(Total_Fatalities$EVTYPE[1:100],Total_Injuries$EVTYPE[1:100],crop_damage$EVTYPE[1:100],prop_damage$EVTYPE[1:100])
+names(Total_Damage) <- c("EVTYPE (Total Fatalities)","EVTYPE (Total Injuries)", "EVTYPE (Total Crop Damage)", "EVTYPE (Total Property Damage)")
+Total_Damage
+```
+
+```{r}
+sessionInfo()
+```
